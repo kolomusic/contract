@@ -48,10 +48,12 @@ contract KOLOMarket is ERC20TokenCallerBase, KOLONFTCallerBase, BiddingCallerBas
         require(numberArrs.length == len,"numberArrs length error");
         require(_calculateTotalNumber(numberArrs) <= 50, "total number limit 50");
 
+        uint256 _totalPrice = calculateTotalPrice(uniTokenIds, tapeIndexArrs, numberArrs);
+
         for(uint i=0; i<uniTokenIds.length; i++) {
             _buyTapeNFT(contractAddress, uniTokenIds[i], tapeIndexArrs[i], numberArrs[i]);
         }
-        emit BuyTapeNFT(msg.sender, contractAddress, calculateTotalPrice(uniTokenIds, tapeIndexArrs, numberArrs), uniTokenIds, tapeIndexArrs, numberArrs);
+        emit BuyTapeNFT(msg.sender, contractAddress, _totalPrice, uniTokenIds, tapeIndexArrs, numberArrs);
     }
 
     function _buyTapeNFT(address contractAddress, uint256 uniTokenId, uint256[] memory tapeIndexArr, uint256[] memory numberArr) internal {
