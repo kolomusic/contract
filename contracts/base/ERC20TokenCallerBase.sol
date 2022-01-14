@@ -48,7 +48,8 @@ abstract contract ERC20TokenCallerBase {
 
     function transferERC20Token(address recipient, address tokenContract_, uint256 amount) internal {
         require(isSupportToken(tokenContract_), "not support");
-        IERC20(tokenContract_).transfer(recipient, amount);
+        bool isSuccess = IERC20(tokenContract_).transfer(recipient, amount);
+        require(isSuccess, "transfer return false");
     }
 
     function transferERC20TokenFrom(address sender, address recipient, address tokenContract_, uint256 amount) internal {
