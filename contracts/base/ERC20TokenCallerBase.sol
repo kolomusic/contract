@@ -33,31 +33,32 @@ abstract contract ERC20TokenCallerBase {
     }
 
     function _addTokenContract(address addr) internal {
-        require(!isSupportToken(addr), "Token had already support");
-        require(_supportCnt <= 5, "Support up to 5 token");
+        require(!isSupportToken(addr), "Token already");
+        require(_supportCnt <= 5, "limit 5");
 
         _supportTokenContract[_supportCnt] = addr;
         _supportCnt += 1;
     }
 
     function balanceOfERC20Token(address owner, address tokenContract_) internal view returns (uint256) {
-        require(isSupportToken(tokenContract_), "Token is not support");
+        require(isSupportToken(tokenContract_), "not support");
 
         return IERC20(tokenContract_).balanceOf(owner);
     }
 
     function transferERC20Token(address recipient, address tokenContract_, uint256 amount) internal {
-        require(isSupportToken(tokenContract_), "Token is not support");
+        require(isSupportToken(tokenContract_), "not support");
         IERC20(tokenContract_).transfer(recipient, amount);
     }
 
     function transferERC20TokenFrom(address sender, address recipient, address tokenContract_, uint256 amount) internal {
-        require(isSupportToken(tokenContract_), "Token is not support");
-        IERC20(tokenContract_).transferFrom(sender, recipient, amount);
+        require(isSupportToken(tokenContract_), "not support");
+        bool isSuccess = IERC20(tokenContract_).transferFrom(sender, recipient, amount);
+        require(isSuccess, "transfer return false");
     }
 
     function checkERC20TokenBalanceAndApproved(address owner, address tokenContract_, uint256 amount) internal view{
-        require(isSupportToken(tokenContract_), "Token is not support");
+        require(isSupportToken(tokenContract_), "not support");
 
         uint256 tokenBalance = IERC20(tokenContract_).balanceOf(owner);
         require(tokenBalance >= amount, "Token balance not enough");

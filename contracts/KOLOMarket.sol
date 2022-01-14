@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
-import "./interface/IKOLOMarket.sol";
 import "./base/AccessControlBase.sol";
 import "./base/ERC20TokenCallerBase.sol";
 import "./base/KOLONFTCallerBase.sol";
@@ -15,17 +9,15 @@ import "./base/BiddingCallerBase.sol";
 import "./utils/StringUtil.sol";
 import "./utils/ERC721Holder.sol";
 
-contract KOLOMarket is IKOLOMarket, ERC20TokenCallerBase, KOLONFTCallerBase, BiddingCallerBase, AccessControlBase, ERC721Holder {
+contract KOLOMarket is ERC20TokenCallerBase, KOLONFTCallerBase, BiddingCallerBase, AccessControlBase, ERC721Holder {
 
     using SafeMath for uint256;
     using StringUtil for *;
-    using Strings for uint256;
 
     uint256 private _totalAmount = 0;
     uint256 private _withdrawAmount = 0;
-    uint8 private _uniqueRebateRatio = 20;        //10%
+    uint8 public uniqueRebateRatio = 20;
 
-    uint256 private constant _tapeMaxSupply = 1000;
     uint8 private constant _STEP = 50;       //per step number tapes, price will increment
     uint8 private constant increasePercent = 10;      //10%
 
@@ -37,26 +29,24 @@ contract KOLOMarket is IKOLOMarket, ERC20TokenCallerBase, KOLONFTCallerBase, Bid
     }
 
     function setRebateRatio(uint8 rebateUniOwner_) external onlyAdmin  {
-        _uniqueRebateRatio = rebateUniOwner_;
+        require(rebateUniOwner_ > 0 && rebateUniOwner_ < 100, "between 0 and 100");
+        uniqueRebateRatio = rebateUniOwner_;
     }
 
-    function getRebateRatio() external view returns(uint8) {
-        return _uniqueRebateRatio;
-    }
-
-    function getTotalSaleAmount() external view returns(uint256) {
+    function getTotalSaleAmount() external onlyFunds view returns(uint256) {
         return _totalAmount;
     }
 
-    function getWithdrawAmount() external view returns(uint256) {
+    function getWithdrawAmount() external onlyFunds view returns(uint256) {
         return _withdrawAmount;
     }
 
     function buyTapeNFT(address contractAddress, uint256[] memory uniTokenIds, uint256[][] memory tapeIndexArrs, uint256[][] memory numberArrs) external whenNotPaused {
-        require(msg.sender != address(0), "Sender can not be empty");
+        require(msg.sender != address(0), "Sender is 0");
         uint256 len = uniTokenIds.length;
-        require(tapeIndexArrs.length == len,"tapeIndexArrs length not equals uniqueTokens length");
-        require(numberArrs.length == len,"numberArrs length not equals uniqueTokens length");
+        require(tapeIndexArrs.length == len,"tapeArr length error");
+        require(numberArrs.length == len,"numberArrs length error");
+        require(_calculateTotalNumber(numberArrs) <= 50, "total number limit 50");
 
         for(uint i=0; i<uniTokenIds.length; i++) {
             _buyTapeNFT(contractAddress, uniTokenIds[i], tapeIndexArrs[i], numberArrs[i]);
@@ -66,9 +56,9 @@ contract KOLOMarket is IKOLOMarket, ERC20TokenCallerBase, KOLONFTCallerBase, Bid
     }
 
     function _buyTapeNFT(address contractAddress, uint256 uniTokenId, uint256[] memory tapeIndexArr, uint256[] memory numberArr) internal {
-        require(tapeIndexArr.length == numberArr.length, "tokenIndexArr and numberArr are not equal in length");
+        require(tapeIndexArr.length == numberArr.length, "numberArr length error");
         require(msg.sender != address(0), "Invalid buyer");
-        require(isBiddingDone(uniTokenId), "This unique bidding not completed");
+        require(isBiddingDone(uniTokenId), "Unique bidding not over");
 
         uint256 totalPrice = _calculateTotalPrice(uniTokenId, tapeIndexArr, numberArr);
 
@@ -79,38 +69,48 @@ contract KOLOMarket is IKOLOMarket, ERC20TokenCallerBase, KOLONFTCallerBase, Bid
         transferERC20TokenFrom(msg.sender, address(this), contractAddress, totalPrice);
 
         if(ownerOfUnique(uniTokenId) != address(0)) {
-            transferERC20Token(ownerOfUnique(uniTokenId), contractAddress, totalPrice.mul(_uniqueRebateRatio).div(100));
+            transferERC20Token(ownerOfUnique(uniTokenId), contractAddress, totalPrice.mul(uniqueRebateRatio).div(100));
         }
 
         string memory _uniIdStr = _handleTokenId(uniTokenId, true, false);
         for (uint i = 0; i < tapeIndexArr.length; i++) {
             uint256 _tapeId = tapeIndexArr[i];
 
-            require(isExistTape(uniTokenId, _tapeId), "The tape is not init");
+            require(isExistTape(uniTokenId, _tapeId), "Tape not init");
 
             for (uint j = 0; j < numberArr[i]; j++) {
                 uint256 _currPrice = getTapeNextPrice(uniTokenId, _tapeId);
 
                 uint256 _tapeAmount = getTapeSupply(uniTokenId, _tapeId).add(1);
-                require(_tapeAmount <= _tapeMaxSupply, "The tape nft has reached the highest supply");
+                require(_tapeAmount <= 1000, "limit 1000");
 
                 updateTapeSupply(uniTokenId, _tapeId, _tapeAmount);
                 if (_tapeAmount.mod(_STEP) == 0) {
                     updateTapeNextPrice(uniTokenId, _tapeId, _currPrice.add(_currPrice.mul(increasePercent).div(100)));
                 }
 
-                string memory _amountStr = _handleTokenId(_tapeAmount, false, false);
                 string memory _tokenIdTmp = _uniIdStr.toSlice().concat(_handleTokenId(_tapeId, false, true).toSlice());
-                safeMintKT(msg.sender, _parseInt(_tokenIdTmp.toSlice().concat(_amountStr.toSlice())));
+                safeMintKT(msg.sender, _parseInt(_tokenIdTmp.toSlice().concat(_handleTokenId(_tapeAmount, false, false).toSlice())));
             }
         }
+    }
 
+    function _calculateTotalNumber(uint256[][] memory numberArrs) internal pure returns (uint256) {
+        uint256 len = numberArrs.length;
+
+        uint256 totalNum = 0;
+        for(uint i=0; i<len; i++) {
+            for(uint256 j=0; j<numberArrs[i].length; j++) {
+                totalNum = totalNum.add(numberArrs[i][j]);
+            }
+        }
+        return totalNum;
     }
 
     function calculateTotalPrice(uint256[] memory uniTokenIds, uint256[][] memory tapeIndexArrs, uint256[][] memory numberArrs) public view returns (uint256) {
         uint256 len = uniTokenIds.length;
-        require(tapeIndexArrs.length == len,"tapeIndexArrs length not equals uniqueTokens length");
-        require(numberArrs.length == len,"numberArrs length not equals uniqueTokens length");
+        require(tapeIndexArrs.length == len,"tapeArr length error");
+        require(numberArrs.length == len,"numArr length error");
 
         uint256 totalPrice = 0;
         for(uint i=0; i<uniTokenIds.length; i++) {
@@ -123,21 +123,18 @@ contract KOLOMarket is IKOLOMarket, ERC20TokenCallerBase, KOLONFTCallerBase, Bid
     // withdraw balance
     function withdrawErc20Balance(address contractAddress, uint256 amount) external onlyFunds {
         uint256 currentBalance = balanceOfERC20Token(address(this), contractAddress);
-        require(amount <= currentBalance, "No enough balance");
+        require(amount <= currentBalance, "No enough");
         transferERC20Token(TREASURY_ADDRESS, contractAddress, amount);
         _withdrawAmount = _withdrawAmount.add(amount);
     }
 
     function withdraw(uint256 amount) public onlyFunds {
-        Address.sendValue(TREASURY_ADDRESS, amount);
+        TREASURY_ADDRESS.transfer(amount);
     }
 
-    function setUniqueAndTapeContract(address uniContract_, address tapeContract_) external onlyAdmin {
+    function setUniqueTapeBiddingContract(address uniContract_, address tapeContract_, address bidding_) external onlyAdmin {
         _setUniAndTapeContract(uniContract_, tapeContract_);
-    }
-
-    function updateBiddingContract(address biddingContract_) external onlyAdmin {
-        _updateBiddingContract(biddingContract_);
+        _updateBiddingContract(bidding_);
     }
 
     function addTokenContract(address contractAddress_) external onlyAdmin {
@@ -170,7 +167,6 @@ contract KOLOMarket is IKOLOMarket, ERC20TokenCallerBase, KOLONFTCallerBase, Bid
 
     //uniqueId 6 len, tapeId 4 len, amount len 8 len
     function _handleTokenId(uint256 tokenId_, bool isUniqueId, bool isTapeId) internal pure returns (string memory) {
-        string memory tokenIdStr = tokenId_.toString();
         uint len = 6;
         if (isTapeId) {
             len = 4;
@@ -178,7 +174,7 @@ contract KOLOMarket is IKOLOMarket, ERC20TokenCallerBase, KOLONFTCallerBase, Bid
 
         string memory targetStr = new string(len);
         bytes memory result = bytes(targetStr);
-        bytes memory resource = bytes(tokenIdStr);
+        bytes memory resource = bytes(tokenId_.toString());
 
         if (isUniqueId) {
             result[0] = "1";
@@ -205,7 +201,7 @@ contract KOLOMarket is IKOLOMarket, ERC20TokenCallerBase, KOLONFTCallerBase, Bid
         uint256 mint = 0;
 
         for (uint i=0; i<bresult.length; i++){
-            require((uint8(bresult[i]) >= 48)&&(uint8(bresult[i]) <= 57),"parameter string is not uint");
+            require((uint8(bresult[i]) >= 48)&&(uint8(bresult[i]) <= 57),"parseInt error");
 
             mint *= 10;
             mint += uint8(bresult[i]) - 48;

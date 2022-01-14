@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/utils/Address.sol";
 import "./interface/IKOLOBidding.sol";
 import "./base/AccessControlBase.sol";
 import "./base/ERC20TokenCallerBase.sol";
@@ -52,7 +51,8 @@ contract KOLOBidding is IKOLOBidding, KOLONFTCallerBase, ERC20TokenCallerBase, A
     }
 
     function _initUniqueBidding(uint256 uniId_, uint256 startPrice_, uint8 step_, bool isStarting_) internal  {
-        require(step_ < 100, "increaseStep should be lower 100");
+        require(!_biddingUnique[uniId_].isStarting, "Bidding has started");
+        require(step_ > 0 && step_ < 100, "IncreaseStep should be between 0 and 100");
 
         if(!uniqueExist(uniId_)) {
             uint256 tokenId = _safeMintKU(address (this));
@@ -99,6 +99,12 @@ contract KOLOBidding is IKOLOBidding, KOLONFTCallerBase, ERC20TokenCallerBase, A
 
         checkERC20TokenBalanceAndApproved(msg.sender, contractAddress, amount);
 
+        _totalAmount = _totalAmount.add(amount);
+        _biddingUnique[uniqudId].lastBidder = msg.sender;
+        _biddingUnique[uniqudId].lastPrice = amount;
+        _biddingUnique[uniqudId].biddingNum = unique.biddingNum.add(1);
+        _biddingUnique[uniqudId].erc20Contract = contractAddress;
+
         transferERC20TokenFrom(msg.sender, address(this), contractAddress, amount);
 
         if(unique.lastBidder != address(0)) {
@@ -107,12 +113,6 @@ contract KOLOBidding is IKOLOBidding, KOLONFTCallerBase, ERC20TokenCallerBase, A
 
         emit PlaceBid(uniqudId, msg.sender, amount, unique.lastBidder, unique.lastPrice);
 
-        _totalAmount = _totalAmount.add(amount);
-        _biddingUnique[uniqudId].lastBidder = msg.sender;
-        _biddingUnique[uniqudId].lastPrice = amount;
-        _biddingUnique[uniqudId].biddingNum = unique.biddingNum.add(1);
-        _biddingUnique[uniqudId].erc20Contract = contractAddress;
-
     }
 
     function getLastBiddingInfo(uint256 uniqudId) external view returns(UniqueNFT memory) {
@@ -120,6 +120,7 @@ contract KOLOBidding is IKOLOBidding, KOLONFTCallerBase, ERC20TokenCallerBase, A
     }
 
     function updateIncreaseStep(uint256 uniqudId, uint8 step_) external onlyAdmin {
+        require(step_ > 0 && step_ < 100, "IncreaseStep should be between 0 and 100");
         require(_isInitBidding(uniqudId), "The unique nft has not init");
         require(!_isBiddingDone(uniqudId), "The unique nft has bidding over");
         _biddingUnique[uniqudId].increaseStep = step_;
@@ -165,6 +166,14 @@ contract KOLOBidding is IKOLOBidding, KOLONFTCallerBase, ERC20TokenCallerBase, A
         _addTokenContract(contractAddress_);
     }
 
+    function getTotalSaleAmount() external onlyFunds view returns(uint256) {
+        return _totalAmount;
+    }
+
+    function getWithdrawAmount() external onlyFunds view returns(uint256) {
+        return _withdrawAmount;
+    }
+
     // withdraw balance
     function withdrawErc20Balance(address contractAddress, uint256 amount) external onlyFunds {
         uint256 currentBalance = balanceOfERC20Token(address(this), contractAddress);
@@ -174,7 +183,7 @@ contract KOLOBidding is IKOLOBidding, KOLONFTCallerBase, ERC20TokenCallerBase, A
     }
 
     function withdraw(uint256 amount) public onlyFunds {
-        Address.sendValue(TREASURY_ADDRESS, amount);
+        TREASURY_ADDRESS.transfer(amount);
     }
 
     fallback() external payable {}

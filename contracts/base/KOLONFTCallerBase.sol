@@ -7,15 +7,15 @@ import "../interface/IKOLOUnique.sol";
 
 abstract contract KOLONFTCallerBase {
 
-    address internal _uniqueContract;
-    address internal _tapeContract;
+    address public _uniqueContract;
+    address public _tapeContract;
 
     constructor() {
     }
 
     modifier nftReady() {
-        require(_uniqueContract != address(0), "Unique contract is not ready");
-        require(_tapeContract != address(0), "Tape contract is not ready");
+        require(_uniqueContract != address(0), "Unique is 0");
+        require(_tapeContract != address(0), "Tape is 0");
         _;
     }
 
@@ -39,14 +39,6 @@ abstract contract KOLONFTCallerBase {
         return IKOLOTape(_tapeContract).isExistTape(uniId_, tapeId_);
     }
 
-    function tapeContract() public view returns (address) {
-        return _tapeContract;
-    }
-
-    function uniqueContract() public view returns (address) {
-        return _uniqueContract;
-    }
-
     function safeMintKT(address to, uint256 tapeTokenId) internal {
         IKOLOTape(_tapeContract).safeMintKT(to, tapeTokenId);
     }
@@ -56,6 +48,8 @@ abstract contract KOLONFTCallerBase {
     }
 
     function _setUniAndTapeContract(address uniContract_, address tapeContract_) internal {
+        require(uniContract_ != address(0), "Unique is 0");
+        require(tapeContract_ != address(0), "Tape is 0");
         _tapeContract = tapeContract_;
         _uniqueContract = uniContract_;
     }
