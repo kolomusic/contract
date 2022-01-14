@@ -23,7 +23,7 @@ contract KOLOMarket is ERC20TokenCallerBase, KOLONFTCallerBase, BiddingCallerBas
 
     address payable private constant TREASURY_ADDRESS = payable(0xC3B0ac7acA3Fb2AEB8D623614E7C98D0EbFF2977);
 
-    event BuyTapeNFT(address sender, address contractAddress, uint256[] uniTokenIds, uint256[][] tapeIndexArrs, uint256[][] numberArrs);
+    event BuyTapeNFT(address sender, address contractAddress, uint256 totalPrice, uint256[] uniTokenIds, uint256[][] tapeIndexArrs, uint256[][] numberArrs);
 
     constructor() {
     }
@@ -51,8 +51,7 @@ contract KOLOMarket is ERC20TokenCallerBase, KOLONFTCallerBase, BiddingCallerBas
         for(uint i=0; i<uniTokenIds.length; i++) {
             _buyTapeNFT(contractAddress, uniTokenIds[i], tapeIndexArrs[i], numberArrs[i]);
         }
-
-        emit BuyTapeNFT(msg.sender, contractAddress, uniTokenIds, tapeIndexArrs, numberArrs);
+        emit BuyTapeNFT(msg.sender, contractAddress, calculateTotalPrice(uniTokenIds, tapeIndexArrs, numberArrs), uniTokenIds, tapeIndexArrs, numberArrs);
     }
 
     function _buyTapeNFT(address contractAddress, uint256 uniTokenId, uint256[] memory tapeIndexArr, uint256[] memory numberArr) internal {
