@@ -59,7 +59,7 @@ contract KOLOBidding is IKOLOBidding, KOLONFTCallerBase, ERC20TokenCallerBase, A
             require(tokenId == uniId_, "Unique NFT unique tokenId is wrong");
         } else {
             address uniOwner = ownerOfUnique(uniId_);
-            require(uniOwner != address(this), "Unique nft had owner");
+            require(uniOwner == address(this), "Unique nft had owner");
         }
 
         UniqueNFT memory uniqueNFT = UniqueNFT(
